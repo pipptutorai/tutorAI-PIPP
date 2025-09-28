@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useAuth } from '../contexts/AuthContext';
+import { useMemo, useState } from 'react';
 
 const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '')
 if (!API_BASE) console.warn('[User] VITE_API_URL belum di-set')
@@ -45,15 +46,16 @@ const styles = `
 `
 
 export default function User() {
-  const [q, setQ] = useState('')
-  const [k, setK] = useState(6) // top_k untuk retrieval
-  const [answer, setAnswer] = useState('')
-  const [sources, setSources] = useState([]) // [{document_id, chunk_index, similarity, ...}]
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-  const [peek, setPeek] = useState({}) // key `${docId}:${idx}` -> preview text
+  const { getAuthHeader } = useAuth();
+  const [q, setQ] = useState('');
+  const [k, setK] = useState(6); // top_k untuk retrieval
+  const [answer, setAnswer] = useState('');
+  const [sources, setSources] = useState([]); // [{document_id, chunk_index, similarity, ...}]
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [peek, setPeek] = useState({}); // key `${docId}:${idx}` -> preview text
 
-  const api = useMemo(() => API_BASE, [])
+  const api = useMemo(() => API_BASE, []);
 
   function norm(str=''){ return (str || '').replace(/\s+/g,' ').trim() }
 
@@ -64,11 +66,21 @@ export default function User() {
     setLoading(true); setError(''); setAnswer(''); setSources([]); setPeek({})
 
     try {
+      const authHeader = getAuthHeader()
+      const headers = {
+        'Content-Type':'application/json',
+        ...(authHeader ? { 'Authorization': authHeader } : {})
+      }
       const r = await fetch(`${api}/chat/ask`, {
         method: 'POST',
-        headers: {'Content-Type':'application/json'},
+        headers,
         body: JSON.stringify({ question, role: 'user', top_k: k })
       })
+      
+      if (r.status === 401) {
+        window.location.href = '/login'
+        return
+      }
       const text = await r.text()
       const data = text ? JSON.parse(text) : {}
       if (!r.ok) throw new Error(data?.error || data?.message || `HTTP ${r.status}`)

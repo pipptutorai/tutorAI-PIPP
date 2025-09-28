@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useMemo as useM } from "react";
-
+import { useAuth } from "../contexts/AuthContext";
 const API_BASE = (import.meta.env.VITE_API_URL || "").replace(/\/+$/, "");
 if (!API_BASE) console.warn("[Admin] VITE_API_URL belum di-set");
 
@@ -71,6 +71,7 @@ const styles = `
 `;
 
 export default function Admin() {
+  const { getAuthHeader } = useAuth();
   const [file, setFile] = useState(null);
   const [title, setTitle] = useState("");
   const [items, setItems] = useState([]);
@@ -86,84 +87,152 @@ export default function Admin() {
   const api = useMemo(() => API_BASE, []);
 
   async function fetchJSON(path, opts = {}) {
-    const r = await fetch(`${api}${path}`, { headers: { ...(opts.headers || {}) }, ...opts });
+    const authHeader = getAuthHeader();
+    const headers = {
+      ...(opts.headers || {}),
+      ...(authHeader ? { Authorization: authHeader } : {}),
+    };
+
+    const r = await fetch(`${api}${path}`, {
+      headers,
+      ...opts,
+    });
+
+    // Handle auth errors
+    if (r.status === 401) {
+      window.location.href = "/login";
+      return;
+    }
+
     const text = await r.text();
-    let body; try { body = text ? JSON.parse(text) : {}; } catch { body = { raw: text }; }
-    if (!r.ok) { const msg = body?.error || body?.message || body?.raw || `HTTP ${r.status}`; throw new Error(msg); }
+    let body;
+    try {
+      body = text ? JSON.parse(text) : {};
+    } catch {
+      body = { raw: text };
+    }
+    if (!r.ok) {
+      const msg =
+        body?.error || body?.message || body?.raw || `HTTP ${r.status}`;
+      throw new Error(msg);
+    }
     return body;
   }
 
   async function refresh() {
     try {
-      setLoading(true); setErrorMsg("");
+      setLoading(true);
+      setErrorMsg("");
       const j = await fetchJSON(`/documents`);
       setItems(j.items || []);
     } catch (e) {
       setErrorMsg(String(e.message || e));
       console.error("[Admin] refresh:", e);
-    } finally { setLoading(false); }
+    } finally {
+      setLoading(false);
+    }
   }
-  useEffect(() => { refresh(); }, []);
+  useEffect(() => {
+    refresh();
+  }, []);
 
   async function upload() {
     if (!file) return alert("Pilih PDF dulu");
     try {
-      setUploading(true); setErrorMsg("");
+      setUploading(true);
+      setErrorMsg("");
       const fd = new FormData();
       fd.append("file", file);
       fd.append("title", title || file.name);
-      const r = await fetch(`${api}/documents/upload`, { method: "POST", body: fd });
+
+      const authHeader = getAuthHeader();
+      const headers = authHeader ? { Authorization: authHeader } : {};
+
+      const r = await fetch(`${api}/documents/upload`, { 
+        method: "POST", 
+        body: fd,
+        headers
+      });
+
+      if (r.status === 401) {
+        window.location.href = '/login'
+        return
+      }
+
       const text = await r.text();
-      let j; try { j = JSON.parse(text); } catch { j = { raw: text }; }
+      let j;
+
+      try {
+        j = JSON.parse(text);
+      } catch {
+        j = { raw: text };
+      }
+      
       if (!r.ok || !j.ok) throw new Error(j.error || j.raw || "Upload gagal");
-      setFile(null); setTitle("");
+      setFile(null);
+      setTitle("");
       await refresh();
+
     } catch (e) {
-      alert(e.message || String(e)); setErrorMsg(String(e.message || e));
-    } finally { setUploading(false); }
+      alert(e.message || String(e));
+      setErrorMsg(String(e.message || e));
+    } finally {
+      setUploading(false);
+    }
   }
 
   async function rebuild(id) {
     try {
-      setRebuildId(id); setErrorMsg("");
+      setRebuildId(id);
+      setErrorMsg("");
       const j = await fetchJSON(`/documents/rebuild/${id}`, { method: "POST" });
-      const pages = j.pages ?? "-"; const chunksN = j.chunks ?? j.n_chunks ?? "-";
+      const pages = j.pages ?? "-";
+      const chunksN = j.chunks ?? j.n_chunks ?? "-";
       alert(`Rebuild OK: pages=${pages}, chunks=${chunksN}`);
       await refresh();
     } catch (e) {
-      alert(`Rebuild gagal: ${e.message || e}`); setErrorMsg(String(e.message || e));
-    } finally { setRebuildId(null); }
+      alert(`Rebuild gagal: ${e.message || e}`);
+      setErrorMsg(String(e.message || e));
+    } finally {
+      setRebuildId(null);
+    }
   }
 
   async function viewChunks(id) {
     try {
-      setViewDoc(id); setChunks([]);
+      setViewDoc(id);
+      setChunks([]);
       const j = await fetchJSON(`/documents/${id}/chunks?limit=200`);
       setChunks(j.items || []);
-    } catch (e) { setErrorMsg(String(e.message || e)); console.error("[Admin] viewChunks:", e); }
+    } catch (e) {
+      setErrorMsg(String(e.message || e));
+      console.error("[Admin] viewChunks:", e);
+    }
   }
 
   function statusBadge(status) {
     const s = (status || "").toLowerCase();
     if (s === "embedded") return <span className="ad-badge ok">embedded</span>;
-    if (s === "indexed")  return <span className="ad-badge idx">indexed</span>;
+    if (s === "indexed") return <span className="ad-badge idx">indexed</span>;
     if (s === "uploaded") return <span className="ad-badge up">uploaded</span>;
-    if (s === "error")    return <span className="ad-badge err">error</span>;
+    if (s === "error") return <span className="ad-badge err">error</span>;
     return <span className="ad-badge">{status || "unknown"}</span>;
   }
 
   const filtered = useM(() => {
     const qq = q.trim().toLowerCase();
     if (!qq) return items;
-    return items.filter(x =>
-      (x.title || "").toLowerCase().includes(qq) ||
-      (x.storage_path || "").toLowerCase().includes(qq) ||
-      (x.id || "").toLowerCase().includes(qq)
+    return items.filter(
+      (x) =>
+        (x.title || "").toLowerCase().includes(qq) ||
+        (x.storage_path || "").toLowerCase().includes(qq) ||
+        (x.id || "").toLowerCase().includes(qq)
     );
   }, [items, q]);
 
-  const onDrop = e => {
-    e.preventDefault(); setDrag(false);
+  const onDrop = (e) => {
+    e.preventDefault();
+    setDrag(false);
     if (e.dataTransfer.files?.[0]) setFile(e.dataTransfer.files[0]);
   };
 
@@ -174,7 +243,10 @@ export default function Admin() {
       <div className="ad-wrap">
         <h1 className="ad-h1">Admin — Documents</h1>
         <p className="ad-sub">
-          API: <span className="ad-mono">{api || "(VITE_API_URL belum di-set)"}</span>
+          API:{" "}
+          <span className="ad-mono">
+            {api || "(VITE_API_URL belum di-set)"}
+          </span>
         </p>
 
         {errorMsg && <div className="ad-alert">{errorMsg}</div>}
@@ -182,38 +254,81 @@ export default function Admin() {
         <div className="ad-grid">
           {/* === Uploader / Controls === */}
           <div className="ad-card">
-            <div style={{ display: 'grid', gap: 10 }}>
-              <label htmlFor="title" style={{ fontSize: 13, color: 'var(--muted)' }}>Judul (opsional)</label>
-              <input id="title" className="ad-input" placeholder="Judul (opsional)"
-                     value={title} onChange={e => setTitle(e.target.value)} />
+            <div style={{ display: "grid", gap: 10 }}>
+              <label
+                htmlFor="title"
+                style={{ fontSize: 13, color: "var(--muted)" }}
+              >
+                Judul (opsional)
+              </label>
+              <input
+                id="title"
+                className="ad-input"
+                placeholder="Judul (opsional)"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+              />
 
-              <label htmlFor="pdf" style={{ fontSize: 13, color: 'var(--muted)' }}>File PDF</label>
-              <input id="pdf" name="file" type="file" accept="application/pdf"
-                     onChange={e => setFile(e.target.files?.[0] || null)} />
+              <label
+                htmlFor="pdf"
+                style={{ fontSize: 13, color: "var(--muted)" }}
+              >
+                File PDF
+              </label>
+              <input
+                id="pdf"
+                name="file"
+                type="file"
+                accept="application/pdf"
+                onChange={(e) => setFile(e.target.files?.[0] || null)}
+              />
 
-              <div className={`ad-drop ${drag ? 'drag' : ''}`}
-                   onDragOver={e => { e.preventDefault(); setDrag(true); }}
-                   onDragLeave={() => setDrag(false)}
-                   onDrop={onDrop}>
-                {file
-                  ? <>Dipilih: <b>{file.name}</b></>
-                  : <>Tarik & letakkan PDF di sini, atau pilih lewat input di atas</>}
+              <div
+                className={`ad-drop ${drag ? "drag" : ""}`}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setDrag(true);
+                }}
+                onDragLeave={() => setDrag(false)}
+                onDrop={onDrop}
+              >
+                {file ? (
+                  <>
+                    Dipilih: <b>{file.name}</b>
+                  </>
+                ) : (
+                  <>
+                    Tarik & letakkan PDF di sini, atau pilih lewat input di atas
+                  </>
+                )}
               </div>
 
               <div className="ad-row">
-                <div style={{ display:'flex', gap:8 }}>
-                  <button className="ad-btn ad-btn-primary"
-                          onClick={upload} disabled={uploading || !file} aria-busy={uploading}>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button
+                    className="ad-btn ad-btn-primary"
+                    onClick={upload}
+                    disabled={uploading || !file}
+                    aria-busy={uploading}
+                  >
                     {uploading ? "Uploading…" : "Upload PDF"}
                   </button>
-                  <button className="ad-btn ad-btn-ghost"
-                          onClick={refresh} disabled={loading} aria-busy={loading}>
+                  <button
+                    className="ad-btn ad-btn-ghost"
+                    onClick={refresh}
+                    disabled={loading}
+                    aria-busy={loading}
+                  >
                     {loading ? "Refreshing…" : "Refresh"}
                   </button>
                 </div>
-                <input className="ad-input" placeholder="Cari dokumen…"
-                       value={q} onChange={e => setQ(e.target.value)}
-                       style={{ maxWidth: 180 }} />
+                <input
+                  className="ad-input"
+                  placeholder="Cari dokumen…"
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                  style={{ maxWidth: 180 }}
+                />
               </div>
             </div>
           </div>
@@ -226,13 +341,17 @@ export default function Admin() {
             </div>
 
             <ul className="ad-list">
-              {filtered.map(x => (
+              {filtered.map((x) => (
                 <li key={x.id} className="ad-item">
-                  <div className="ad-row" style={{ alignItems: 'flex-start' }}>
+                  <div className="ad-row" style={{ alignItems: "flex-start" }}>
                     <div style={{ minWidth: 0 }}>
-                      <div className="ad-title">{x.title || x.storage_path || x.file_path}</div>
+                      <div className="ad-title">
+                        {x.title || x.storage_path || x.file_path}
+                      </div>
                       <div className="ad-meta">
-                        <span>ID: <span className="ad-mono">{x.id}</span></span>
+                        <span>
+                          ID: <span className="ad-mono">{x.id}</span>
+                        </span>
                         <span>pages: {x.pages ?? "-"}</span>
                         <span>size: {x.size ? `${x.size} B` : "-"}</span>
                         {statusBadge(x.status)}
@@ -240,15 +359,19 @@ export default function Admin() {
                     </div>
 
                     <div className="ad-tools">
-                      <button className="ad-btn"
-                              onClick={() => viewChunks(x.id)}>
+                      <button
+                        className="ad-btn"
+                        onClick={() => viewChunks(x.id)}
+                      >
                         Lihat Chunks
                       </button>
-                      <button className="ad-btn"
-                              onClick={() => rebuild(x.id)}
-                              disabled={!!rebuildId}
-                              aria-busy={rebuildId === x.id}
-                              title="Extract → Chunk → Embed">
+                      <button
+                        className="ad-btn"
+                        onClick={() => rebuild(x.id)}
+                        disabled={!!rebuildId}
+                        aria-busy={rebuildId === x.id}
+                        title="Extract → Chunk → Embed"
+                      >
                         {rebuildId === x.id ? "Rebuilding…" : "Rebuild"}
                       </button>
                     </div>
@@ -257,13 +380,23 @@ export default function Admin() {
                   {viewDoc === x.id && (
                     <div className="ad-chunks">
                       {chunks.length === 0 ? (
-                        <div style={{ color: 'var(--muted)' }}>Belum ada chunks.</div>
+                        <div style={{ color: "var(--muted)" }}>
+                          Belum ada chunks.
+                        </div>
                       ) : (
                         <ol>
                           {chunks.map((c) => (
                             <li key={c.id} style={{ marginBottom: 12 }}>
-                              <div style={{ fontSize: 12, color: 'var(--muted)' }}>#{c.chunk_index}</div>
-                              <pre style={{ whiteSpace: "pre-wrap", margin: 0 }}>{c.content}</pre>
+                              <div
+                                style={{ fontSize: 12, color: "var(--muted)" }}
+                              >
+                                #{c.chunk_index}
+                              </div>
+                              <pre
+                                style={{ whiteSpace: "pre-wrap", margin: 0 }}
+                              >
+                                {c.content}
+                              </pre>
                             </li>
                           ))}
                         </ol>

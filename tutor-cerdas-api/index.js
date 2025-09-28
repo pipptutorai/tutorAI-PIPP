@@ -1,9 +1,14 @@
-require('dotenv').config();
-const express = require('express');
-const cors = require('cors');
-const multer = require('multer');
-const { createClient } = require('@supabase/supabase-js');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+import dotenv from 'dotenv';
+import express from 'express';
+import cors from 'cors';
+import multer from 'multer';
+import { createClient } from '@supabase/supabase-js';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+
+dotenv.config();
+
+import { requireAdmin, requireUser } from './middleware/auth.js';
+import authRoutes from './routes/auth.js';
 
 const app = express();
 
@@ -50,8 +55,11 @@ app.get('/health', (_req, res) => {
   res.json({ ok: true, env: process.env.NODE_ENV || 'dev' });
 });
 
+// Auth routes
+app.use('/auth', authRoutes);
+
 /* ===== Upload PDF ===== */
-app.post('/documents/upload', upload.single('file'), async (req, res) => {
+app.post('/documents/upload', requireAdmin, upload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'file is required' });
     const title = req.body?.title || req.file.originalname;
@@ -85,7 +93,7 @@ app.post('/documents/upload', upload.single('file'), async (req, res) => {
 });
 
 /* ===== List Documents (fallback jika 'created_at' tidak ada) ===== */
-app.get('/documents', async (_req, res) => {
+app.get('/documents', requireUser, async (_req, res) => {
   try {
     let { data, error } = await supabase
       .from(TABLE)
@@ -106,7 +114,7 @@ app.get('/documents', async (_req, res) => {
 });
 
 /* ===== Rebuild = proxy ke INDEXER (chunk + embed) ===== */
-app.post('/documents/rebuild/:id', async (req, res) => {
+app.post('/documents/rebuild/:id', requireAdmin, async (req, res) => {
   try {
     if (!INDEXER_URL) return res.status(500).json({ error: 'INDEXER_URL not set' });
 
@@ -141,7 +149,7 @@ app.post('/documents/rebuild/:id', async (req, res) => {
 });
 
 /* ===== Lihat chunks per dokumen ===== */
-app.get('/documents/:id/chunks', async (req, res) => {
+app.get('/documents/:id/chunks', requireUser, async (req, res) => {
   try {
     const id = req.params.id;
     const limit = Number(req.query.limit ?? 50);
@@ -164,7 +172,7 @@ app.get('/documents/:id/chunks', async (req, res) => {
 });
 
 /* ===== Preview gabungan N chunk pertama ===== */
-app.get('/documents/:id/preview', async (req, res) => {
+app.get('/documents/:id/preview', requireAdmin, async (req, res) => {
   try {
     const id = req.params.id;
     const n = Number(req.query.n ?? 10);
@@ -183,7 +191,7 @@ app.get('/documents/:id/preview', async (req, res) => {
 });
 
 /* ===== M4: RAG (retrieval -> Gemini) ===== */
-app.post('/chat/ask', async (req, res) => {
+app.post('/chat/ask', requireUser, async (req, res) => {
   try {
     const { question, role, top_k } = req.body || {};
     if (!question) return res.status(400).json({ error: 'question is required' });
