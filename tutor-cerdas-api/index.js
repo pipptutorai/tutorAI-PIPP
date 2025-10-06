@@ -116,34 +116,39 @@ app.get('/documents', requireUser, async (_req, res) => {
 /* ===== Rebuild = proxy ke INDEXER (chunk + embed) ===== */
 app.post('/documents/rebuild/:id', requireAdmin, async (req, res) => {
   try {
-    if (!INDEXER_URL) return res.status(500).json({ error: 'INDEXER_URL not set' });
-
-    const { data: doc, error } = await supabase
-      .from(TABLE).select('id, storage_path').eq('id', req.params.id).single();
-    if (error || !doc) return res.status(404).json({ error: 'document not found' });
-    if (!doc.storage_path) return res.status(400).json({ error: 'no storage_path; re-upload file' });
-
-    // coba endpoint baru
-    let r = await _fetch(`${INDEXER_URL}/process/document`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ document_id: req.params.id })
-    });
-    // fallback ke endpoint lama kalau 404
-    if (r.status === 404) {
-      r = await _fetch(`${INDEXER_URL}/embed/document`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ document_id: req.params.id })
-      });
+    if (!INDEXER_URL) {
+      return res.status(500).json({ error: 'INDEXER_URL not set' });
     }
 
-    const txt = await r.text();
-    let body; try { body = JSON.parse(txt) } catch { body = { raw: txt } }
-    console.log('[rebuild] upstream status:', r.status, 'body:', body);
-    return res.status(r.status).json(body);
+    const documentId = req.params.id;
+    const { data: doc, error } = await supabase.from(TABLE).select('id').eq('id', documentId).single();
+
+    if (error || !doc) {
+      return res.status(404).json({ error: 'Document not found' });
+    }
+
+    // Panggil indexer untuk memulai proses di latar belakang
+    const indexerResponse = await _fetch(`${INDEXER_URL}/process`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ document_id: documentId }),
+    });
+
+    // Jika indexer tidak merespons dengan baik, kirim error
+    if (!indexerResponse.ok) {
+        const errorBody = await indexerResponse.text();
+        console.error(`[rebuild] Indexer failed with status ${indexerResponse.status}:`, errorBody);
+        return res.status(502).json({ error: 'Indexer service failed to start processing.' });
+    }
+
+    // Kirim respons sukses yang jelas ke frontend
+    return res.json({
+        ok: true,
+        message: `Rebuild process for document ${documentId} has been started in the background.`
+    });
+
   } catch (e) {
-    console.error('[rebuild] error:', e);
+    console.error('[rebuild] Internal error:', e);
     res.status(500).json({ error: String(e) });
   }
 });
