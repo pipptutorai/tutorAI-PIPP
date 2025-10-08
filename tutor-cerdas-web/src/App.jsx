@@ -1,6 +1,7 @@
 import { Outlet, NavLink } from 'react-router-dom'
 import { useAuth } from './contexts/AuthContext'
 import { useTheme } from './hooks/useTheme'
+import { Sun, Moon, Home, LogIn, UserPlus, Settings, MessageSquare, Crown, User, LogOut, GraduationCap } from 'lucide-react'
 
 const styles = `
 :root[data-theme="light"] {
@@ -113,13 +114,14 @@ body {
   height: 32px;
   background: linear-gradient(135deg, var(--brand) 0%, var(--brand-dark) 100%);
   border-radius: 8px;
-  font-size: 18px;
+  color: white;
 }
 
 .nav-wrapper {
   display: flex;
   align-items: center;
   gap: 16px;
+  flex-wrap: wrap;
 }
 
 /* ===== NAVIGATION ===== */
@@ -140,7 +142,7 @@ body {
   transition: all 0.2s ease;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
 }
 
 .nav a:hover {
@@ -154,10 +156,17 @@ body {
   font-weight: 600;
 }
 
+.nav-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
 /* ===== THEME TOGGLE ===== */
 .theme-toggle {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
   padding: 8px;
   background: var(--soft);
@@ -165,6 +174,8 @@ body {
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s ease;
+  min-width: 40px;
+  min-height: 40px;
 }
 
 .theme-toggle:hover {
@@ -173,10 +184,12 @@ body {
 }
 
 .theme-icon {
-  font-size: 18px;
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 20px;
+  height: 20px;
+  color: var(--text);
 }
 
 /* ===== USER INFO ===== */
@@ -188,6 +201,7 @@ body {
   background: var(--soft);
   border-radius: 10px;
   border: 1px solid var(--line);
+  flex-wrap: wrap;
 }
 
 .user-avatar {
@@ -201,12 +215,14 @@ body {
   color: white;
   font-weight: 600;
   font-size: 13px;
+  flex-shrink: 0;
 }
 
 .user-info {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
 }
 
 .user-name {
@@ -214,6 +230,9 @@ body {
   font-weight: 600;
   color: var(--text);
   line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .user-badge {
@@ -227,11 +246,19 @@ body {
   color: var(--success);
 }
 
+.user-badge-icon {
+  width: 12px;
+  height: 12px;
+}
+
 .user-badge.admin {
   color: var(--danger);
 }
 
 .logout-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   padding: 6px 12px;
   border: 1px solid var(--line);
   background: transparent;
@@ -249,6 +276,11 @@ body {
   color: var(--danger);
   border-color: var(--danger);
   transform: translateY(-1px);
+}
+
+.logout-icon {
+  width: 14px;
+  height: 14px;
 }
 
 /* ===== MAIN CONTENT ===== */
@@ -280,6 +312,7 @@ body {
   display: flex;
   gap: 12px;
   flex-wrap: wrap;
+  align-items: center;
 }
 
 .footer-link {
@@ -332,6 +365,32 @@ body {
 
 @media (max-width: 768px) {
   .app-header-inner {
+    gap: 16px;
+  }
+
+  .nav-wrapper {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .nav {
+    flex: 1;
+    justify-content: flex-start;
+  }
+
+  .user-section {
+    order: 3;
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .theme-toggle {
+    order: 2;
+  }
+}
+
+@media (max-width: 640px) {
+  .app-header-inner {
     flex-direction: column;
     align-items: stretch;
     gap: 12px;
@@ -349,6 +408,13 @@ body {
   .nav {
     width: 100%;
     justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .nav a {
+    flex: 1;
+    min-width: fit-content;
+    justify-content: center;
   }
 
   .user-section {
@@ -363,9 +429,17 @@ body {
     flex-direction: column;
     text-align: center;
   }
+
+  .footer-links {
+    justify-content: center;
+  }
 }
 
 @media (max-width: 480px) {
+  .app-container {
+    padding: 0 16px;
+  }
+
   .nav {
     flex-direction: column;
     gap: 4px;
@@ -377,8 +451,16 @@ body {
     justify-content: center;
   }
 
+  .user-info {
+    display: none;
+  }
+
   .logout-btn {
-    width: 100%;
+    padding: 8px;
+  }
+
+  .logout-btn span:not(.logout-icon) {
+    display: none;
   }
 }
 `
@@ -428,25 +510,44 @@ export default function App() {
           <div className="app-container">
             <div className="app-header-inner">
               <h1 className="brand">
-                <span className="brand-icon">🎓</span>
+                <span className="brand-icon">
+                  <GraduationCap size={20} />
+                </span>
                 Tutor Cerdas
               </h1>
               
               <div className="nav-wrapper">
                 <nav className="nav" aria-label="Main navigation">
-                  <NavLink to="/" end>🏠 Home</NavLink>
+                  <NavLink to="/" end>
+                    <Home className="nav-icon" />
+                    Home
+                  </NavLink>
                   
                   {!isAuthenticated && (
                     <>
-                      <NavLink to="/login">🔐 Login</NavLink>
-                      <NavLink to="/register">✨ Register</NavLink>
+                      <NavLink to="/login">
+                        <LogIn className="nav-icon" />
+                        Login
+                      </NavLink>
+                      <NavLink to="/register">
+                        <UserPlus className="nav-icon" />
+                        Register
+                      </NavLink>
                     </>
                   )}
                   
                   {isAuthenticated && (
                     <>
-                      {isAdmin && <NavLink to="/admin">⚙️ Admin</NavLink>}
-                      <NavLink to="/user">💬 Chat</NavLink>
+                      {isAdmin && (
+                        <NavLink to="/admin">
+                          <Settings className="nav-icon" />
+                          Admin
+                        </NavLink>
+                      )}
+                      <NavLink to="/user">
+                        <MessageSquare className="nav-icon" />
+                        Chat
+                      </NavLink>
                     </>
                   )}
                 </nav>
@@ -454,10 +555,10 @@ export default function App() {
                 <button 
                   className="theme-toggle" 
                   onClick={toggleTheme}
-                  title={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
+                  aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
                 >
                   <span className="theme-icon">
-                    {theme === 'light' ? '🌙' : '☀️'}
+                    {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
                   </span>
                 </button>
 
@@ -469,11 +570,22 @@ export default function App() {
                         {user?.full_name || user?.email?.split('@')[0] || 'User'}
                       </div>
                       <span className={`user-badge ${isAdmin ? 'admin' : ''}`}>
-                        {isAdmin ? '👑 Admin' : '👤 User'}
+                        {isAdmin ? (
+                          <>
+                            <Crown className="user-badge-icon" />
+                            Admin
+                          </>
+                        ) : (
+                          <>
+                            <User className="user-badge-icon" />
+                            User
+                          </>
+                        )}
                       </span>
                     </div>
                     <button className="logout-btn" onClick={handleLogout}>
-                      🚪 Logout
+                      <LogOut className="logout-icon" />
+                      <span>Logout</span>
                     </button>
                   </div>
                 )}

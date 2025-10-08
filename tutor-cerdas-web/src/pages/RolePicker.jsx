@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { Settings, GraduationCap } from 'lucide-react'
 
 const styles = `
 .rp-wrap {
@@ -122,40 +123,18 @@ const styles = `
 }
 
 .rp-icon {
-  font-size: 20px;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
 }
 
 .rp-foot {
-  margin-top: 20px;
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  justify-content: center;
-}
-
-.dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 999px;
-  display: inline-block;
-  opacity: 0.7;
-  transition: opacity 0.2s ease;
-}
-
-.dot:hover {
-  opacity: 1;
-}
-
-.dot.green {
-  background: #6ee7b7;
-}
-
-.dot.yellow {
-  background: #ffd36d;
-}
-
-.dot.red {
-  background: #ff7a7a;
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+  text-align: center;
+  color: var(--muted);
+  font-size: 13px;
 }
 
 .rp-blur {
@@ -209,20 +188,18 @@ export default function RolePicker() {
 
           <div className="rp-actions">
             <Link to="/admin" className="rp-btn rp-btn-admin" aria-label="Masuk sebagai Admin">
-              <span className="rp-icon" aria-hidden>🛠️</span>
+              <Settings className="rp-icon" aria-hidden="true" />
               Masuk Admin
             </Link>
 
             <Link to="/user" className="rp-btn rp-btn-user" aria-label="Masuk sebagai User">
-              <span className="rp-icon" aria-hidden>🎓</span>
+              <GraduationCap className="rp-icon" aria-hidden="true" />
               Masuk User
             </Link>
           </div>
 
-          <div className="rp-foot" aria-hidden>
-            <span className="dot green" />
-            <span className="dot yellow" />
-            <span className="dot red" />
+          <div className="rp-foot">
+            MVP Version 1.0
           </div>
         </div>
 

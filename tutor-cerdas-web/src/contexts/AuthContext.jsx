@@ -244,7 +244,7 @@ export function AuthProvider({ children }) {
       if (error) throw error;
       return data;
     } finally {
-      // Loading will be set to false by onAuthStateChange
+      // Loading will be set to false by 
     }
   }
 
